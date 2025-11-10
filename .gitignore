@@ -105,3 +105,7 @@ Assets/StreamingAssets/*.gguf
 .DS_Store
 project_directory_tree.txt
 Assets/Scenes/*.unity.bak
+
+# IDE junk
+.idea/
+**/.idea/
