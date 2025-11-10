@@ -7,6 +7,7 @@ namespace LLMUnitySamples
 {
     public class ChatBot : MonoBehaviour
     {
+        [SerializeField] private TTSManager ttsManager;
         public Transform chatContainer;
         public Color playerColor = new Color32(81, 164, 81, 255);
         public Color aiColor = new Color32(29, 29, 73, 255);
@@ -27,6 +28,8 @@ namespace LLMUnitySamples
         private BubbleUI playerUI, aiUI;
         private bool warmUpDone = false;
         private int lastBubbleOutsideFOV = -1;
+
+        private string lastResponse = "";  // To store the latest LLM response
 
         void Start()
         {
@@ -56,7 +59,8 @@ namespace LLMUnitySamples
             _ = llmCharacter.Warmup(WarmUpCallback);
         }
 
-        public void SubmitVoiceCommand(string message) {
+        public void SubmitVoiceCommand(string message)
+        {
             inputBubble.SetText(message);
             onInputFieldSubmit(message);
         }
@@ -64,63 +68,80 @@ namespace LLMUnitySamples
         void onInputFieldSubmit(string newText)
         {
             inputBubble.ActivateInputField();
-            if (blockInput || newText.Trim() == "" || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+            if (blockInput || string.IsNullOrWhiteSpace(newText))
             {
                 StartCoroutine(BlockInteraction());
                 return;
             }
+
             blockInput = true;
-            // replace vertical_tab
             string message = inputBubble.GetText().Replace("\v", "\n");
 
-            
+            // Player's message bubble
             Bubble playerBubble = new Bubble(chatContainer, playerUI, "PlayerBubble", message);
             Bubble aiBubble = new Bubble(chatContainer, aiUI, "AIBubble", "...");
+
             chatBubbles.Add(playerBubble);
             chatBubbles.Add(aiBubble);
             playerBubble.OnResize(UpdateBubblePositions);
             aiBubble.OnResize(UpdateBubblePositions);
 
-            Task chatTask = llmCharacter.Chat(message, aiBubble.SetText, AllowInput);
+            // Send the message to the chatbot and handle the response
+            Task chatTask = llmCharacter.Chat(message, response =>
+            {
+                lastResponse = response;  // Update the latest LLM response
+                aiBubble.SetText(response);  // Update the chat bubble with the response
+            }, AllowInput);
+
             inputBubble.SetText("");
         }
 
-        public void WarmUpCallback() {
+        void SendToTTS(string text)
+        {
+            if (ttsManager == null)
+            {
+                Debug.LogError("TTSManager is not assigned! Please assign it in the Inspector.");
+                return;
+            }
+
+            Debug.Log($"Sending to TTS: {text}");
+            ttsManager.SynthesizeAndPlay(text);
+        }
+
+        public void AllowInput()
+        {
+            // This is triggered when the chatbot has completed its response
+            if (!string.IsNullOrEmpty(lastResponse))
+            {
+                Debug.Log($"Final chatbot response: {lastResponse}");
+                SendToTTS(lastResponse);  // Trigger TTS for the final response
+            }
+
+            blockInput = false;  // Allow the user to input again
+            inputBubble.ReActivateInputField();
+        }
+
+        public void WarmUpCallback()
+        {
             inputBlocker.SetActive(false);
             warmUpDone = true;
             inputBubble.SetPlaceHolderText("Message me");
             AllowInput();
         }
 
-        public void AllowInput()
-        {
-            blockInput = false;
-            inputBubble.ReActivateInputField();
-        }
-
-        public void CancelRequests()
-        {
-            llmCharacter.CancelRequests();
-            AllowInput();
-        }
-
         IEnumerator<string> BlockInteraction()
         {
-            // prevent from change until next frame
             inputBubble.setInteractable(false);
             yield return null;
             inputBubble.setInteractable(true);
-            // change the caret position to the end of the text
             inputBubble.MoveTextEnd();
         }
 
         void onValueChanged(string newText)
         {
-            // Get rid of newline character added when we press enter
-            if (Input.GetKey(KeyCode.Return))
+            if (Input.GetKey(KeyCode.Return) && string.IsNullOrWhiteSpace(inputBubble.GetText()))
             {
-                if (inputBubble.GetText().Trim() == "")
-                    inputBubble.SetText("");
+                inputBubble.SetText("");
             }
         }
 
@@ -128,13 +149,13 @@ namespace LLMUnitySamples
         {
             float y = inputBubble.GetSize().y + inputBubble.GetRectTransform().offsetMin.y + bubbleSpacing;
             float containerHeight = chatContainer.GetComponent<RectTransform>().rect.height;
+
             for (int i = chatBubbles.Count - 1; i >= 0; i--)
             {
                 Bubble bubble = chatBubbles[i];
                 RectTransform childRect = bubble.GetRectTransform();
                 childRect.anchoredPosition = new Vector2(childRect.anchoredPosition.x, y);
 
-                // last bubble outside the container
                 if (y > containerHeight && lastBubbleOutsideFOV == -1)
                 {
                     lastBubbleOutsideFOV = i;
@@ -150,9 +171,9 @@ namespace LLMUnitySamples
                 inputBubble.ActivateInputField();
                 StartCoroutine(BlockInteraction());
             }
+
             if (lastBubbleOutsideFOV != -1)
             {
-                // destroy bubbles outside the container
                 for (int i = 0; i <= lastBubbleOutsideFOV; i++)
                 {
                     chatBubbles[i].Destroy();
@@ -168,13 +189,11 @@ namespace LLMUnitySamples
             Application.Quit();
         }
 
-        bool onValidateWarning = true;
         void OnValidate()
         {
-            if (onValidateWarning && !llmCharacter.remote && llmCharacter.llm != null && llmCharacter.llm.model == "")
+            if (!llmCharacter.remote && llmCharacter.llm != null && llmCharacter.llm.model == "")
             {
                 Debug.LogWarning($"Please select a model in the {llmCharacter.llm.gameObject.name} GameObject!");
-                onValidateWarning = false;
             }
         }
     }

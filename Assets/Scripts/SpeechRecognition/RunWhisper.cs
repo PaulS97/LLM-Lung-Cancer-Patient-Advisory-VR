@@ -191,7 +191,9 @@ public class RunWhisper : MonoBehaviour
                 // outputString += $"(time={(ID - START_TIME) * 0.02f})";
                 speechRecognitionController.onResponse.Invoke(outputString);
             }
-            else outputString += GetUnicodeText(tokens[ID]);
+            else {
+                outputString += GetUnicodeText(tokens[ID]);
+}
 
             // Debug.Log(outputString);
         }
