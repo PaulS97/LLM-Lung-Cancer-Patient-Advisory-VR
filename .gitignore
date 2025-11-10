@@ -101,3 +101,7 @@ InitTestScene*.unity*
 # Large AI models kept local
 Assets/SentisModels/*.onnx
 Assets/StreamingAssets/*.gguf
+
+.DS_Store
+project_directory_tree.txt
+Assets/Scenes/*.unity.bak
