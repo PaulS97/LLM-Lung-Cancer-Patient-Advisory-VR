@@ -1,7 +1,6 @@
 # Large Language Model Lung Cancer Patient Advisory in Virtual Reality
 
-![Demo Placeholder](assets/demo_screenshot.png)  
-*(Add your own screenshot or GIF here)*
+![Doctor avatar responding to patient](Assets/program_screenshot.png)
 
 ---
 
